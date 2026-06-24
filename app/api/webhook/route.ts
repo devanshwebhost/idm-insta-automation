@@ -53,11 +53,43 @@ import { supabase } from '@/utils/supabase'; // Apna supabase client import karo
 
 export async function POST(req: Request) {
   const body = await req.json();
-  
-  // Is line ko dhyan se dekho: Ye bina kisi condition ke sab kuch log karega
-  console.log("--- PURE WEBHOOK PAYLOAD START ---");
-  console.log(JSON.stringify(body, null, 2));
-  console.log("--- PURE WEBHOOK PAYLOAD END ---");
+  console.log("PAYLOAD RECEIVED:", JSON.stringify(body, null, 2));
+
+  const entry = body.entry?.[0];
+
+  // 1. HANDLE DMs (Direct Messages)
+  if (entry.messaging) {
+    const messaging = entry.messaging[0];
+    const senderId = messaging.sender.id;
+    const text = messaging.message?.text;
+    
+    if (text) {
+        console.log("DM RECEIVED from:", senderId, "Text:", text);
+        // Yahan apna DM automation logic (Groq API call) run karo
+        // await handleDM(senderId, text); 
+    }
+  }
+
+  // 2. HANDLE CHANGES (Comments, Reactions, Edits)
+  if (entry.changes) {
+    const change = entry.changes[0];
+    const field = change.field;
+    const value = change.value;
+
+    switch (field) {
+      case 'message_reactions':
+        console.log("Reaction received:", value.reaction.emoji);
+        break;
+      case 'message_edit':
+        console.log("Message was edited:", value.message_edit.text);
+        break;
+      case 'comments':
+        console.log("New comment:", value.text);
+        break;
+      default:
+        console.log("Unhandled change field:", field);
+    }
+  }
 
   return NextResponse.json({ status: 'success' });
 }
