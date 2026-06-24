@@ -25,32 +25,26 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const body = await req.json();
 
-  // DEBUGGING: Yeh line verify karegi ki request aa bhi rahi hai ya nahi
-  console.log("META WEBHOOK RECEIVED:", JSON.stringify(body, null, 2));
-
-  // Check karo ki kya yeh instagram ya page (DM) event hai
-  const isInstagram = body.object === 'instagram';
-  const isPage = body.object === 'page';
-
-  if (isInstagram || isPage) {
+  if (body.object === 'instagram') {
     const entry = body.entry?.[0];
-    
-    // Yahan extraction logic handle karo
-    // Note: DMs aksar 'messaging' array mein aate hain
-    const messaging = entry?.messaging?.[0]; 
-    const changes = entry?.changes?.[0]?.value;
-    
-    // Log extract ki gayi values ko taaki pata chale data mil raha hai ya nahi
-    console.log("EXTRACTED DATA:", { messaging, changes });
 
-    // Agar messaging nahi mila, toh aage mat badho
-    if (!messaging) return NextResponse.json({ status: 'ok' });
+    // 1. DM/Message handle karne ke liye (Aapka purana logic)
+    if (entry.messaging) {
+      const messaging = entry.messaging[0];
+      // ... aapka existing DM handling code ...
+    }
 
-    // ... (Baaki tumhara Supabase aur Groq wala logic yahan rakho)
-    
-    // Ek basic success response
-    return NextResponse.json({ status: 'success' });
+    // 2. Reactions handle karne ke liye (Naya Logic)
+    if (entry.changes) {
+      const change = entry.changes[0];
+      if (change.field === 'message_reactions') {
+        const { sender, reaction } = change.value;
+        console.log(`User ${sender.id} reacted with ${reaction.emoji}`);
+        
+        // Yahan reaction handle karne ka code likho (jaise DB update)
+      }
+    }
   }
 
-  return NextResponse.json({ status: 'ok' });
+  return NextResponse.json({ status: 'success' });
 }
