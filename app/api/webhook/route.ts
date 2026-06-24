@@ -80,15 +80,34 @@ export async function POST(req: Request) {
     const aiData = await aiResponse.json();
     const reply = aiData.choices[0].message.content;
 
-    // 5. Instagram par reply bhejo
-    await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recipient: { id: senderId },
-        message: { text: reply }
-      })
-    });
+
+    // 5. Instagram par reply bhejo (WITH ERROR LOGGING)
+    try {
+      console.log(`Attempting to send message to: ${senderId}`); // Log 1
+
+      const metaResponse = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: { id: senderId },
+          message: { text: reply }
+        })
+      });
+
+      const metaData = await metaResponse.json();
+      
+      // YAHI HAI ASLI JADOO JO ERROR BATA YEGA
+      console.log("META API RESPONSE:", metaData); 
+
+      if (!metaResponse.ok) {
+        console.error("FAILED TO SEND DM. Meta Error:", metaData);
+      } else {
+        console.log("DM SENT SUCCESSFULLY!");
+      }
+
+    } catch (error) {
+      console.error("CRITICAL ERROR IN FETCH:", error);
+    }
 
     return NextResponse.json({ status: 'success' });
   }
