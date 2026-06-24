@@ -41,17 +41,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'Bot is disabled' });
     }
 
-    // 2. DM ya Comment handle karo
-    const senderId = messaging?.sender?.id;
-    const text = messaging?.message?.text || messaging?.comment?.text;
-    const mediaId = messaging?.post?.id || messaging?.media?.id;
+    // 2. DM ya Comment handle karo (IMPROVED LOGIC)
+    const isComment = !!messaging.comment; // Agar 'comment' object hai, toh yeh comment hai
+    const isDM = !!messaging.message;     // Agar 'message' object hai, toh yeh DM hai
 
-    if (!text) return NextResponse.json({ status: 'ok' });
+    const senderId = isComment ? messaging.from.id : messaging.sender.id;
+    const text = isComment ? messaging.text : messaging.message.text;
+    const mediaId = isComment ? messaging.media.id : null; // Comments mein media ID alag se aata hai
+    const commentId = isComment ? messaging.id : null; // Comment reply ke liye comment ID zaroori hai
+
+    if (!text || !senderId) {
+      console.log("Webhook received but no text or sender ID found. Skipping.");
+      return NextResponse.json({ status: 'ok' });
+    }
 
     // 3. Automation check (kya ye kisi reel ka reply hai?)
-    let finalPrompt = settings.dm_master_prompt;
+    // Agar DM hai ya koi rule nahi mila, toh default DM prompt use karo
+    let finalPrompt = settings.dm_master_prompt || "You are a helpful AI. Reply in short Hinglish under 15 words.";
     
-    if (mediaId) {
+    // Sirf comment ke case mein reel-specific rule check karo
+    if (isComment && mediaId) {
       const { data: rule } = await supabase
         .from('automations')
         .select('ai_prompt')
@@ -80,29 +89,46 @@ export async function POST(req: Request) {
     const aiData = await aiResponse.json();
     const reply = aiData.choices[0].message.content;
 
-
     // 5. Instagram par reply bhejo (WITH ERROR LOGGING)
     try {
-      console.log(`Attempting to send message to: ${senderId}`); // Log 1
+      let metaApiUrl = '';
+      let payload = {};
 
-      const metaResponse = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (isDM) {
+        console.log(`Attempting to send DM to: ${senderId}`);
+        metaApiUrl = `https://graph.facebook.com/v21.0/me/messages?access_token=${process.env.IG_ACCESS_TOKEN}`;
+        payload = {
           recipient: { id: senderId },
           message: { text: reply }
-        })
+        };
+      } else if (isComment && commentId) {
+        console.log(`Attempting to reply to comment: ${commentId}`);
+        metaApiUrl = `https://graph.facebook.com/v21.0/${commentId}/replies?access_token=${process.env.IG_ACCESS_TOKEN}`;
+        payload = {
+          message: reply
+        };
+      } else {
+        console.log("Cannot reply: Not a DM and no commentId found.");
+        return NextResponse.json({ status: 'ok' });
+      }
+
+      const metaResponse = await fetch(metaApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       const metaData = await metaResponse.json();
       
       // YAHI HAI ASLI JADOO JO ERROR BATA YEGA
-      console.log("META API RESPONSE:", metaData); 
+      console.log("META API RESPONSE:", metaData);
 
       if (!metaResponse.ok) {
-        console.error("FAILED TO SEND DM. Meta Error:", metaData);
+        if(isDM) console.error("FAILED TO SEND DM. Meta Error:", metaData);
+        if(isComment) console.error("FAILED TO REPLY TO COMMENT. Meta Error:", metaData);
       } else {
-        console.log("DM SENT SUCCESSFULLY!");
+        if(isDM) console.log("DM SENT SUCCESSFULLY!");
+        if(isComment) console.log("COMMENT REPLY SENT SUCCESSFULLY!");
       }
 
     } catch (error) {
