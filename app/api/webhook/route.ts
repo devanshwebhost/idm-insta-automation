@@ -23,7 +23,9 @@ export async function GET(req: Request) {
 // ... aapka existing POST function niche hi rahega
 
 export async function POST(req: Request) {
+    console.log("--- REQUEST HIT THE SERVER ---");
   const body = await req.json();
+  console.log("BODY RECEIVED:", body);
 
   if (body.object === 'instagram') {
     const entry = body.entry?.[0];
